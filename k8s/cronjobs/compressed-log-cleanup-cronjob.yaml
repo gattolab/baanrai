@@ -1,0 +1,43 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongo-compressed-log-cleanup
+  namespace: banraiphisan
+spec:
+  # Run daily at midnight (0 0 * * *)
+  schedule: "0 0 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          volumes:
+            - name: mongo-logs
+              nfs:
+                server: sila-ipdc.warmipdc.intra.ais
+                path: >-
+                  /FS_MILKYWAY_LOG/legacy-portal-apis/logs/service/MONGO
+          containers:
+            - name: compressed-log-cleaner
+              image: alpine:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  apk add --no-cache findutils
+                  find /logs -mtime +7 -type f -name "*.gz" \
+                    -exec rm -f '{}' \;
+              volumeMounts:
+                - name: mongo-logs
+                  mountPath: /logs
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi

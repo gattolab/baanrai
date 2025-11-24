@@ -1,0 +1,43 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongo-log-compression
+  namespace: banraiphisan
+spec:
+  # Run daily at midnight (0 0 * * *)
+  schedule: "0 0 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          volumes:
+            - name: mongo-logs
+              nfs:
+                server: sila-ipdc.warmipdc.intra.ais
+                path: >-
+                  /FS_MILKYWAY_LOG/legacy-portal-apis/logs/service/MONGO
+          containers:
+            - name: log-compressor
+              image: alpine:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  apk add --no-cache gzip findutils
+                  find /logs -mtime +1 -type f -name "*.log*" \
+                    ! -name "*.gz" -exec gzip '{}' \;
+              volumeMounts:
+                - name: mongo-logs
+                  mountPath: /logs
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
