@@ -15,9 +15,10 @@ jobs:
     name: Deploy to self-hosted Kubernetes
     runs-on: [ self-hosted, k8s-runner ]
     env:
-      DEPLOYMENT_REPO: https://github.com/banraiphisan/deployment
-      DEPLOYMENT_PATH: deployments/banraicore-api/
-      NAMESPACE: banraiphisan
+      APP_NAME: banrai-api
+      DEPLOYMENT_REPO: https://github.com/meekode/deployments
+      DEPLOYMENT_PATH: deployments/banrai-api/
+      NAMESPACE: meekode
 
     steps:
       - name: Checkout app repo
@@ -30,7 +31,7 @@ jobs:
 
       - name: Build & Push to GHCR
         run: |
-          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/banraicore-api
+          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/${{ env.APP_NAME }}
           IMAGE_TAG=$(git rev-parse --short HEAD)
           
           if docker manifest inspect $IMAGE_NAME:$IMAGE_TAG > /dev/null 2>&1; then
@@ -68,16 +69,16 @@ jobs:
       - name: Checkout deployment manifests
         uses: actions/checkout@v4
         with:
-          repository: banraiphisan/deployment
+          repository: meekode/deployments
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           path: deployment-repo
 
       - name: Update image tag in manifests
         run: |
           IMAGE_TAG=$(git rev-parse --short HEAD)
-          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/banraicore-api
+          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/${{ env.APP_NAME }}
           
-          find deployment-repo/${{ env.DEPLOYMENT_PATH }} -name "*.yaml" -o -name "*.yml" | xargs sed -i "s|image:.*banraicore-api.*|image: $IMAGE_NAME:$IMAGE_TAG|g"
+          find deployment-repo/${{ env.DEPLOYMENT_PATH }} -name "*.yaml" -o -name "*.yml" | xargs sed -i "s|image:.*${{ env.APP_NAME }}.*|image: $IMAGE_NAME:$IMAGE_TAG|g"
           
           echo "Updated manifests with image: $IMAGE_NAME:$IMAGE_TAG"
 
@@ -89,7 +90,7 @@ jobs:
           
           kubectl apply -f deployment-repo/${{ env.DEPLOYMENT_PATH }} -n ${{ env.NAMESPACE }}
           
-          kubectl rollout status deployment/banraicore-api -n ${{ env.NAMESPACE }} --timeout=300s
+          kubectl rollout status deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }} --timeout=300s
           
           echo "Deployment completed successfully"
         env:
@@ -98,7 +99,7 @@ jobs:
       - name: Verify deployment
         run: |
           echo "Deployment status:"
-          kubectl get pods -n ${{ env.NAMESPACE }} -l app=banraicore-api
-          kubectl get svc -n ${{ env.NAMESPACE }} -l app=banraicore-api
+          kubectl get pods -n ${{ env.NAMESPACE }} -l app=${{ env.APP_NAME }}
+          kubectl get svc -n ${{ env.NAMESPACE }} -l app=${{ env.APP_NAME }}
         env:
           HOME: /home/github-runner
